@@ -17,8 +17,31 @@ class NN(tf.keras.Model):
         #         - tf.keras.initializers.GlorotUniform (this is what we tried)
         #         - tf.keras.initializers.GlorotNormal
         #         - tf.keras.initializers.he_uniform or tf.keras.initializers.he_normal
-        
-        
+        hidden_size = 15
+        initializer = tf.keras.initializers.GlorotUniform()
+        input_layer = tf.keras.layers.InputLayer(input_shape=[in_size])
+        main_layer = tf.keras.layers.Dense(hidden_size, activation='sigmoid', kernel_initializer=initializer, use_bias=True, bias_initializer=initializer)
+        left_layer = tf.keras.layers.Dense(hidden_size, input_shape=(hidden_size,), activation='relu', kernel_initializer=initializer, use_bias=True, bias_initializer=initializer)
+        right_layer = tf.keras.layers.Dense(hidden_size, input_shape=(hidden_size,), activation='relu', kernel_initializer=initializer, use_bias=True, bias_initializer=initializer)
+        straight_layer = tf.keras.layers.Dense(hidden_size, input_shape=(hidden_size,), activation='relu', kernel_initializer=initializer, use_bias=True, bias_initializer=initializer)
+        # out = tf.keras.layers.Dense(hidden_size, activation='softmax', kernel_initializer=initializer, use_bias=True, bias_initializer=initializer)(out)
+        out_layer = tf.keras.layers.Dense(out_size, kernel_initializer=initializer) #activation=activation,
+        self.model_main = tf.keras.Sequential([
+            input_layer,
+            main_layer
+        ])
+        self.model_left = tf.keras.Sequential([
+            left_layer,
+            out_layer
+        ])
+        self.model_right = tf.keras.Sequential([
+            right_layer,
+            out_layer
+        ])
+        self.model_straight = tf.keras.Sequential([
+            straight_layer,
+            out_layer
+        ])
         
         ########## Your code ends here ##########
 
@@ -33,7 +56,23 @@ class NN(tf.keras.Model):
         # HINT 1: Looping over all data samples may not be the most computationally efficient way of doing branching
         # HINT 2: While implementing this, we found tf.math.equal and tf.cast useful. This is not necessarily a requirement though.
         
-
+        #output of shared main network
+        main_out = self.model_main(x)
+        #form masks for actions
+        leftmask = tf.math.equal(u, 0)
+        straightmask = tf.math.equal(u, 1)
+        rightmask = tf.math.equal(u, 2)
+        #forward pass through specific nets given command masks (zero is a placeholder)
+        output_left = tf.where(leftmask, self.model_left(main_out), 0)
+        output_straight = tf.where(straightmask, self.model_straight(main_out), 0)
+        output_right = tf.where(rightmask, self.model_right(main_out), 0)
+        #set the final output to the left result (zero is a placeholder again)
+        output = tf.where(leftmask, output_left, 0)
+        #set the final output to the straight result and the left result
+        output = tf.where(straightmask, output_straight, output)
+        #set the remaining outputs to the right output
+        output = tf.where(rightmask, output_right, output)
+        return output
 
         ########## Your code ends here ##########
 
@@ -46,7 +85,13 @@ def loss(y_est, y):
     # - y is the actions the expert took for the corresponding batch of observations & goals
     # At the end your code should return the scalar loss value.
     # HINT: Remember, you can penalize steering (0th dimension) and throttle (1st dimension) unequally
-
+    batch_size = y.shape[0]
+    mu = 9
+    diff_raw = tf.abs(y_est - y)
+    weighting = tf.concat((mu*tf.ones((batch_size, 1)), tf.ones((batch_size, 1))), 1) 
+    diff_adj = tf.math.multiply(weighting, diff_raw)
+    out = tf.reduce_mean(diff_adj)
+    return out
 
 
     ########## Your code ends here ##########
@@ -78,7 +123,14 @@ def nn(data, args):
         # 3. Based on the loss calculate the gradient for all weights
         # 4. Run an optimization step on the weights.
         # Helpful Functions: tf.GradientTape(), tf.GradientTape.gradient(), tf.keras.Optimizer.apply_gradients
-        
+        with tf.GradientTape() as tape:
+            # make forward pass
+            y_est = nn_model.call(x, u)
+            vars = nn_model.variables # array of weights and biases
+            tape.watch(vars)
+            current_loss = loss(y_est,y) # calculate loss
+            grads = tape.gradient(current_loss,vars)
+        optimizer.apply_gradients(zip(grads, vars)) # one step of GD
         
 
         ########## Your code ends here ##########

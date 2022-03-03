@@ -8,6 +8,8 @@ from gym_carlo.envs.interactive_controllers import KeyboardController
 from scipy.stats import multivariate_normal
 from train_ildist import NN
 from utils import *
+from tensorflow_probability import distributions as tfd
+import tensorflow as tf
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -56,7 +58,24 @@ if __name__ == '__main__':
             # - action (1 x 2 numpy array) is the current action the user took when the observation is obs
             # The code should set a variable called "probs" which is list keeping the probabilities associated with goals[scenario_name], respectively.
             # HINT: multivariate_normal from scipy.stats might be useful, which is already imported. Or you can implement it yourself, too.
-
+            probs = np.zeros(len(goals['intersection']))
+            turns = goals['intersection']
+            # for goal in goals['intersection']:
+            for i in range(len(turns)):
+                model = nn_models[turns[i]]
+                pred = model(tf.convert_to_tensor(obs, dtype=tf.float32))
+                # print(pred)
+                output_matrix = tf.reshape(pred[0, 2:6], (2,2))
+                # print("got output matrix")
+                covar = tf.linalg.matmul(output_matrix, output_matrix, transpose_b=True)
+                epsilon = 0.001 * tf.eye(2)
+                covar_adj = covar + epsilon
+                # print("calculated output matrix")
+                # covar_vec = tf.reshape(covar, (-1, 4))
+                mean = pred[:, 0:2]
+                dist_est = tfd.MultivariateNormalFullCovariance(loc=mean, covariance_matrix=covar_adj)
+                probs[i] = dist_est.prob(tf.convert_to_tensor(action, dtype=tf.float32))
+            probs = (1/3)*probs/np.sum(probs)
 
             ########## Your code ends here ##########
             

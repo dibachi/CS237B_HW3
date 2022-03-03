@@ -8,6 +8,8 @@ from gym_carlo.envs.interactive_controllers import KeyboardController
 from scipy.stats import multivariate_normal
 from train_ildist import NN
 from utils import *
+import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -58,6 +60,28 @@ if __name__ == '__main__':
             # - max_steering and max_throttle are the constraints, i.e. np.abs(a_robot[0]) <= max_steering and np.abs(a_robot[1]) <= max_throttle must be satisfied.
             # At the end, your code should set a_robot variable as a 1x2 numpy array that consists of steering and throttle values, respectively
             # HINT: You can use np.clip to threshold a_robot with respect to the magnitude constraints
+            
+            window_size = 50 #size of moving average window (arbitrarily set for now)
+            Pg = np.sum(scores[100-window_size:, :], axis=0)
+            num_goals = len(goals[scenario_name])
+            subterm = np.zeros((2, num_goals))
+            for i in range(len(goals[scenario_name])):
+                goal = goals[scenario_name][i]
+                # aH = optimal_action[goals[scenario_name][goal]] # ?
+                model = nn_models[goal]
+                pred = model(tf.convert_to_tensor(obs, dtype=tf.float32))
+                # print(pred)
+                # output_matrix = tf.reshape(pred[0, 2:6], (2,2))
+                # print("got output matrix")
+                # covar = tf.linalg.matmul(output_matrix, output_matrix, transpose_b=True)
+                # epsilon = 0.001 * tf.eye(2)
+                # covar_adj = covar + epsilon
+                # print("calculated output matrix")
+                # covar_vec = tf.reshape(covar, (-1, 4))
+                mean = pred[:, 0:2]
+                subterm[:,i] = Pg[i] * (optimal_action[goal] - mean.numpy())
+            aR = np.sum(subterm, axis=1)
+            a_robot = np.array([np.clip(aR[0], -max_steering, max_steering), np.clip(aR[1], -max_throttle, max_throttle)])
 
 
 
@@ -75,7 +99,24 @@ if __name__ == '__main__':
             # - a_human (1 x 2 numpy array) is the current action the user took when the observation is obs
             # At the end, your code should set probs variable as a 1 x |G| numpy array that consists of the probability of each goal under obs and a_human
             # HINT: This should be very similar to the part in intent_inference.py 
-
+            probs = np.zeros(len(goals[scenario_name]))
+            turns = goals[scenario_name]
+            # for goal in goals['intersection']:
+            for i in range(len(turns)):
+                model = nn_models[turns[i]]
+                pred = model(tf.convert_to_tensor(obs, dtype=tf.float32))
+                # print(pred)
+                output_matrix = tf.reshape(pred[0, 2:6], (2,2))
+                # print("got output matrix")
+                covar = tf.linalg.matmul(output_matrix, output_matrix, transpose_b=True)
+                epsilon = 0.001 * tf.eye(2)
+                covar_adj = covar + epsilon
+                # print("calculated output matrix")
+                # covar_vec = tf.reshape(covar, (-1, 4))
+                mean = pred[:, 0:2]
+                dist_est = tfd.MultivariateNormalFullCovariance(loc=mean, covariance_matrix=covar_adj)
+                probs[i] = dist_est.prob(tf.convert_to_tensor(a_human, dtype=tf.float32))
+            probs = (1/num_goals)*probs/np.sum(probs)
 
 
             ########## Your code ends here ##########
