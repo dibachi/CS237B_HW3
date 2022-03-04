@@ -124,13 +124,12 @@ def nn(data, args):
         # 4. Run an optimization step on the weights.
         # Helpful Functions: tf.GradientTape(), tf.GradientTape.gradient(), tf.keras.Optimizer.apply_gradients
         with tf.GradientTape() as tape:
-            # make forward pass
             y_est = nn_model.call(x, u)
-            vars = nn_model.variables # array of weights and biases
+            vars = nn_model.variables 
             tape.watch(vars)
-            current_loss = loss(y_est,y) # calculate loss
+            current_loss = loss(y_est,y) 
             grads = tape.gradient(current_loss,vars)
-        optimizer.apply_gradients(zip(grads, vars)) # one step of GD
+        optimizer.apply_gradients(zip(grads, vars))
         
 
         ########## Your code ends here ##########
