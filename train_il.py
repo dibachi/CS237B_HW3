@@ -101,7 +101,6 @@ def nn(data, args):
         # 4. Run an optimization step on the weights.
         # Helpful Functions: tf.GradientTape(), tf.GradientTape.gradient(), tf.keras.Optimizer.apply_gradients
         
-        ###bianca's code
         with tf.GradientTape() as tape:
             # make forward pass
             y_est = nn_model.call(x)
