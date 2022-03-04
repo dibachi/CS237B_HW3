@@ -61,7 +61,7 @@ if __name__ == '__main__':
             # At the end, your code should set a_robot variable as a 1x2 numpy array that consists of steering and throttle values, respectively
             # HINT: You can use np.clip to threshold a_robot with respect to the magnitude constraints
             
-            window_size = 50 #size of moving average window (arbitrarily set for now)
+            window_size = 100 #size of moving average window (arbitrarily set for now) [bumped from 50 to 100]
             Pg = np.sum(scores[100-window_size:, :], axis=0)
             num_goals = len(goals[scenario_name])
             subterm = np.zeros((2, num_goals))
